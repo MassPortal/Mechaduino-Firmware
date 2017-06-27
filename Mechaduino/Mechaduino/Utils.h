@@ -9,6 +9,10 @@ extern "C" {
 
 #define MAX_RAW     0x3FFF
 
+extern volatile uint32_t setPoint;
+extern volatile uint_fast8_t setMicro;
+extern volatile int32_t wrapCount;
+
 void setupPins(void);                       // initializes pins
 void setupSPI(void);                        //initializes SPI
 void configureStepDir(void);                //configure step/dir interface

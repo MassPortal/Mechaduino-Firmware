@@ -3,9 +3,7 @@
 
 #include "Arduino.h"
 #include "Parameters.h"
-#include "Controller.h"
 #include "Utils.h"
-#include "State.h"
 #include "analogFastWrite.h"
 #include <math.h>
 
@@ -14,10 +12,17 @@
 extern "C" {
 #endif
 
+
+#define WAIT_TC16_REGS_SYNC(x) while(x->COUNT16.STATUS.bit.SYNCBUSY)
+
 static volatile bool dir = true;  
 
-#define WAIT_TC16_REGS_SYNC(x) while(x->COUNT16.STATUS.bit.SYNCBUSY);
-
+/* Full step target */ 
+volatile uint32_t setPoint = 0;
+/* Mirostep target */
+volatile uint_fast8_t setMicro = 0;
+/* Wraps + direction as sign*/
+volatile int32_t wrapCount = 0;
 
 static inline int mod(int xMod, int mMod) 
 {
@@ -68,18 +73,18 @@ void setupSPI() {
 static void stepInterrupt(void) 
 {
     if (dir) {
-        if (setpoint < SPR - 1) {
-            setpoint++;
+        if (setPoint < SPR - 1) {
+            setPoint++;
         } else {
             wrapCount--;
-            setpoint = 0;
+            setPoint = 0;
         }
     } else {
-        if (setpoint) {
-            setpoint--;
+        if (setPoint) {
+            setPoint--;
         } else {
             wrapCount++;
-            setpoint = SPR - 1;
+            setPoint = SPR - 1;
         }
     }
 }
@@ -89,7 +94,6 @@ static void dirInterrupt()
     dir = (REG_PORT_IN0 & PORT_PA11) ? false : true;
 }
 
-
 void configureStepDir(void) 
 {
   pinMode(step_pin, INPUT);
@@ -98,17 +102,16 @@ void configureStepDir(void)
   attachInterrupt(dir_pin, dirInterrupt, CHANGE);
 }
 
-static const int16_t sinLook[] = {0, 1, 0, -1};
-
 void output(uint32_t theta, int effort) 
 {
+    const int16_t sinLook[] = {0, 1, 0, -1};// Full step lookup table
+
     int32_t coilA, coilB;
     uint8_t angle = theta%4;
-    coilA = (int32_t)effort*sinLook[angle];//(sin(theta*M_PI/2.0));
-    //theta += 100;
+    coilA = (int32_t)effort*sinLook[angle];
+    /* Add 90 degrees */
     if (++angle >= 4) angle = 0;
     coilB = (int32_t)effort*sinLook[angle];
-    //coilB = (int32_t)effort*(sin((theta*M_PI/2.0) + (M_PI/2.0)));
     analogFastWrite(VREF_1, abs(coilA));
     analogFastWrite(VREF_2, abs(coilB));
     if (coilA >= 0) {
@@ -182,8 +185,6 @@ static bool readEncoderDiagnostics(void)
   return true;
 }
 
-
-
 #define AVG_COUNT   16      // Number of samples to average
 #define MAX_DELTA   0xFF    // Maximum difference between two steps
 #define MIN_DELTA   10      // Minumum difference between two steps
@@ -192,8 +193,7 @@ void calibrate(void)
 {
     uint16_t stepReading[SPR];
     int32_t sum;
-    int16_t raw0;
-    int16_t raw1;
+    int16_t raw0, raw1;
 
     uint16_t stepMin = 0;
     
@@ -329,8 +329,7 @@ void oneStep(void)
 {
     /* Since we have a "one step" function anyway*/
     stepInterrupt();
-    output(setpoint, 100);
-    //output(0.9 * setpoint, 100);
+    output(setPoint, 100);
     delay(10);
 }
 
@@ -354,14 +353,14 @@ uint_fast16_t readEncoder(void)
 void print_angle(void)
 {
     const int avg = 8;            //average a few readings
-    int encoderReading = 0;
+    uint32_t encoderReading = 0;
 
     for (int reading = 0; reading < avg; reading++) {  //average multple readings at each step
         encoderReading += readEncoder();
         delay(10);
     }
     SerialUSB.print("stepNumber: ");
-    SerialUSB.print(setpoint, DEC);
+    SerialUSB.print(setPoint, DEC);
     SerialUSB.print(" , ");
     SerialUSB.print("Angle: ");
     SerialUSB.println((360.0*encoderReading)/(MAX_RAW*avg), 2);
@@ -378,7 +377,7 @@ void setupTCInterrupts(void)
     TC5->COUNT16.CTRLA.reg |= TC_CTRLA_WAVEGEN_MFRQ; // Set TC as normal Normal Frq
     TC5->COUNT16.CTRLA.reg |= TC_CTRLA_PRESCALER_DIV1;   // Set perscaler
     TC5->COUNT16.CC[0].reg = (int)( round(48000000 / FS));
-    WAIT_TC16_REGS_SYNC(TC5)
+    WAIT_TC16_REGS_SYNC(TC5);
 
     TC5->COUNT16.INTENSET.reg = 0;              // disable all interrupts
     TC5->COUNT16.INTENSET.bit.OVF = 1;          // enable overfollow
@@ -393,7 +392,7 @@ void setupTCInterrupts(void)
 void enableTCInterrupts(void) 
 {
   TC5->COUNT16.CTRLA.reg |= TC_CTRLA_ENABLE;    //Enable TC5
-  WAIT_TC16_REGS_SYNC(TC5)                      //wait for sync
+  WAIT_TC16_REGS_SYNC(TC5);                     //wait for sync
 }
 
 #ifdef __cplusplus

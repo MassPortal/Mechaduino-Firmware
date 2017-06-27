@@ -20,17 +20,24 @@
  c  -  calibration routine
 */
 
+/* Comment for closed loop uncomment for calibreation*/
+//#define CALIBRATE
+
+#include "Arduino.h"
+
 #include "Utils.h"
 #include "Parameters.h"
-#include "State.h"
 #include "analogFastWrite.h"
-#include "Controller.h"
 
-/* Comment for closed loop uncomment for calibreation*/
-#define CALIBRATE
+#include <SPI.h>
 
-/* This is a copy form same thing @ Controller.cpp*/
-static inline uint16_t seekReal(uint16_t raw)
+static volatile uint_fast16_t oldRaw;
+static volatile uint_fast16_t newRaw;
+static volatile uint_fast16_t realPoint = 0;
+static volatile uint_fast8_t realMicro = 0;
+
+/* Finds real step position in lookuptable */
+__attribute__((hot)) static inline uint_fast16_t seekReal(uint16_t raw)
 {
     uint_fast32_t i;
 
@@ -79,7 +86,7 @@ void setup(void)
     newRaw = readEncoder();
     oldRaw = newRaw;
 
-    setpoint = seekReal(newRaw);
+    setPoint = seekReal(newRaw);
     configureStepDir();
     enableTCInterrupts();
 
@@ -102,4 +109,36 @@ void loop(void)
 
 #endif /* CALIBRATE*/
 
+}
+
+/* Gets called with FS frequency*/
+/* Gets called frequently and it's an interrupt*/
+__attribute__((hot)) __attribute__((interrupt)) void TC5_Handler(void)
+{
+    /* Overfolow didnt cause interrupt*/
+    if (TC5->COUNT16.INTFLAG.bit.OVF != 1) return;
+    /* Get new position*/
+    newRaw = readEncoder();
+    if (newRaw > oldRaw && oldRaw + MAX_RAW/2 < newRaw) wrapCount--;
+    else if (newRaw < oldRaw && newRaw + MAX_RAW/2 < oldRaw) wrapCount++;
+    realPoint = seekReal(newRaw);
+
+    if (wrapCount<0) {
+        output(realPoint - 1, 60);
+        ledPin_HIGH();
+    } else if (wrapCount>0) {
+        output(realPoint + 1, 60);
+        ledPin_HIGH();
+    } else if (setPoint > realPoint) {
+        output(realPoint - 1, 60);
+        ledPin_HIGH();
+    } else if (setPoint < realPoint) {
+        output(realPoint + 1, 60);
+        ledPin_HIGH();
+    } else {
+        ledPin_LOW();
+    }
+    oldRaw = newRaw;
+    /* Clear ovf flag */
+    TC5->COUNT16.INTFLAG.bit.OVF = 1; 
 }

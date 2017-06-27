@@ -1,8 +1,4 @@
-//Contains the Mechaduino parameter defintions
-
-#include <Wire.h>
 #include "Parameters.h"
-#include "math.h"
 
 //This is the encoder lookup table (created by calibration routine):
 const uint16_t lookup[SPR] = {

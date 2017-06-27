@@ -1,11 +1,13 @@
 #ifndef __PARAMETERS_H__
 #define __PARAMETERS_H__
 
-#define firmware_version "N/A"    //firmware version
+#include <stdint.h>
+#include <stdbool.h>
 
 //----Current Parameters-----
 /* Steps per reveleation */
 #define SPR     400
+#define USTEPS  32
 /* Timer frequency*/
 #define FS      25000.0 //6500.0
 
