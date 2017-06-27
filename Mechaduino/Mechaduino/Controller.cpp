@@ -1,123 +1,104 @@
-//Contains TC5 Controller definition
-//The main control loop is executed by the TC5 timer interrupt:
-
 #include <SPI.h>
 
 #include "State.h"
 #include "Utils.h"
 #include "Parameters.h"
+#include "Arduino.h"
 
+volatile uint_fast16_t oldRaw;
+volatile uint_fast16_t newRaw;
+static volatile uint_fast16_t realPoint;
+static volatile uint_fast16_t oldPoint;
 
-void TC5_Handler() {                // gets called with FPID frequency
-  
-  static int print_counter = 0;               //this is used by step response
+/* Finds real step position in lookuptable */
+__attribute__((hot)) static inline uint16_t seekReal(uint16_t raw)
+{
+    uint_fast32_t i;
 
-  if (TC5->COUNT16.INTFLAG.bit.OVF == 1) {    // A counter overflow caused the interrupt
-     
-    TEST1_HIGH();  //digitalWrite(3, HIGH);       //Fast Write to Digital 3 for debugging
-
-    y = lookup[readEncoder()];                    //read encoder and lookup corrected angle in calibration lookup table
-   
-    if ((y - y_1) < -180.0) wrap_count += 1;      //Check if we've rotated more than a full revolution (have we "wrapped" around from 359 degrees to 0 or ffrom 0 to 359?)
-    else if ((y - y_1) > 180.0) wrap_count -= 1;
-
-    yw = (y + (360.0 * wrap_count));              //yw is the wrapped angle (can exceed one revolution)
-
-
-    if (mode == 'h') {                            //choose control algorithm based on mode
-      hybridControl();                            // hybrid control is still under development...
+    if (raw < lookup[0]) {
+        /* 0 edgecase */
+        return (raw + MAX_RAW - lookup[SPR - 1] < lookup[0] - raw) ? SPR - 1 : 0;
+    } else if (raw > lookup[SPR - 1]) {
+        /* MAX_RAW egecase */
+        return (lookup[0] + MAX_RAW - raw < raw - lookup[SPR - -1]) ? 0 : SPR - 1;
+    } 
+    /* Go to target approx */
+    i = (raw - 1)*SPR / MAX_RAW;// ((MAX_RAW + 1) / SPR);
+    if (lookup[i] < raw) {
+        while (i<SPR - 1) {
+            if (lookup[i] >= raw) {
+                return (lookup[i] - raw < raw - lookup[i - 1] ) ? i : i - 1;
+            }
+            i++;
+        }
+    } else {
+        while (i) {
+            if (lookup[i] <= raw) {
+                return (raw - lookup[i] < lookup[i + 1] - raw) ? i : i + 1;
+            }
+            i--;
+        }
     }
-    else {
-      switch (mode) {
-        case 'x':         // position control                        
-            e = (r - yw);
-            
-            ITerm += (pKi * e);                             //Integral wind up limit
-            if (ITerm > 150.0) ITerm = 150.0;
-            else if (ITerm < -150.0) ITerm = -150.0;          
-           
-            DTerm = pLPFa*DTerm -  pLPFb*pKd*(yw-yw_1);
-           
-            u = (pKp * e) + ITerm + DTerm;
-           
-           
-            break;
-            
-        case 'v':         // velocity controlr
-          v = vLPFa*v +  vLPFb*(yw-yw_1);     //filtered velocity called "DTerm" because it is similar to derivative action in position loop
-
-          e = (r - v);   //error in degrees per rpm (sample frequency in Hz * (60 seconds/min) / (360 degrees/rev) )
-
-          ITerm += (vKi * e);                 //Integral wind up limit
-          if (ITerm > 200) ITerm = 200;
-          else if (ITerm < -200) ITerm = -200;
-        
-          u = ((vKp * e) + ITerm - (vKd * (e-e_1)));
-          
-          //SerialUSB.println(e);
-          break;
-          
-        case 't':         // torque control
-          u = 1.0 * r ;
-          break;
-        default:
-          u = 0;
-          break;
-      }
-
-    y_1 = y;  //copy current value of y to previous value (y_1) for next control cycle before PA angle added
-
-    
-    if (u > 0)          //Depending on direction we want to apply torque, add or subtract a phase angle of PA for max effective torque.  PA should be equal to one full step angle: if the excitation angle is the same as the current position, we would not move!  
-      {                 //You can experiment with "Phase Advance" by increasing PA when operating at high speeds
-      y += PA;          //update phase excitation angle
-      if (u > uMAX)     // limit control effort
-        u = uMAX;       //saturation limits max current command
-      }
-    else
-      {
-      y -= PA;          //update phase excitation angle
-      if (u < -uMAX)    // limit control effort
-        u = -uMAX;      //saturation limits max current command
-      }
-
-      U = abs(u);       //
-
-      if (abs(e) < 0.1) ledPin_HIGH();    // turn on LED if error is less than 0.1
-      else ledPin_LOW();                  //digitalWrite(ledPin, LOW);
-
-
-      output(-y, round(U));    // update phase currents
-    }
-    
-   // e_3 = e_2;    //copy current values to previous values for next control cycle
-    e_2 = e_1;    //these past values can be useful for more complex controllers/filters.  Uncomment as necessary    
-    e_1 = e;
-   // u_3 = u_2;
-    u_2 = u_1;
-    u_1 = u;
-    yw_1 = yw;
-    //y_1 = y;
-    
-    if (print_yw ==  true){       //for step resonse... still under development
-      print_counter += 1;  
-      if (print_counter >= 5){    // print position every 5th loop (every time is too much data for plotter and may slow down control loop
-        SerialUSB.println(int(yw*1024));    //*1024 allows us to print ints instead of floats... may be faster
-        print_counter = 0;
-      }
-    }
-    TC5->COUNT16.INTFLAG.bit.OVF = 1;    // writing a one clears the flag ovf flag
-    TEST1_LOW();            //for testing the control loop timing
-
-  }
-
-
+    return i;
 }
 
+/* Gets called with FS frequency*/
+/* Gets called frequently and it's an interrupt*/
+__attribute__((hot)) __attribute__((interrupt)) void TC5_Handler(void)
+{
+    /* Overfolow didnt cause interrupt*/
+    if (TC5->COUNT16.INTFLAG.bit.OVF != 1) return;
+    /* Get new position*/
+    newRaw = readEncoder();
+    if (newRaw > oldRaw && oldRaw + MAX_RAW/2 < newRaw) wrapCount--;
+    else if (newRaw < oldRaw && newRaw + MAX_RAW/2 < oldRaw) wrapCount++;
+#if 1 
+    realPoint = seekReal(newRaw);
+    /*if (realPoint != oldPoint) {
+        oldPoint = realPoint;
+        SerialUSB.print(setpoint);
+        SerialUSB.print(" * ");
+        SerialUSB.print(oldPoint);
+        SerialUSB.print(" * ");
+        SerialUSB.println(wrapCount);
+    
+    }*/
 
+    if (wrapCount<0) {
+        output(realPoint - 1, 60);
+        ledPin_HIGH();
+    } else if (wrapCount>0) {
+        output(realPoint + 1, 60);
+        ledPin_HIGH();
+    } else if (setpoint > realPoint) {
+        output(realPoint - 1, 60);
+        ledPin_HIGH();
+    } else if (setpoint < realPoint) {
+        output(realPoint + 1, 60);
+        ledPin_HIGH();
+    } else {
+        ledPin_LOW();
+    }
 
+#else 
+    if (wrapCount>0) {
+        output(360.0*newRaw/MAX_RAW + PA, uMAX/3);
+    } else if (wrapCount<0) {
+        output(360.0*newRaw/MAX_RAW - PA, uMAX/3);
+        /* Get real numbers and so on*/
+        /* XXX this should make use of that lookuptable*/
+        /* XXX This is bugged for some edge cases*/
+        /* Also output thing should be adjusted to microstep-capable*/
+    } else if (lookup[setpoint] + 30u < newRaw) {
+        output(360.0*newRaw/MAX_RAW + PA, uMAX/3);
+    } else if (lookup[setpoint] > newRaw + 30u) {
+        output(360.0*newRaw/MAX_RAW - PA, uMAX/3);
+    } else {
+        ledPin_LOW();
+    }
+#endif /* 1*/
+    oldRaw = newRaw;
+    
 
-
-
-
-
+    TC5->COUNT16.INTFLAG.bit.OVF = 1;    // writing a one clears the ovf flag
+}

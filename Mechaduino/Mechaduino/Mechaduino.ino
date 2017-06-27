@@ -14,83 +14,92 @@
   Controlled via a SerialUSB terminal at 115200 baud.
 
   Implemented serial commands are:
-
+ p  - read angle
  s  -  step
  d  -  dir
- p  -  print [step number] , [encoder reading]
-
  c  -  calibration routine
- e  -  check encoder diagnositics
- q  -  parameter query
-
- x  -  position mode
- v  -  velocity mode
- t  -  torque mode
-
- y  -  enable control loop
- n  -  disable control loop
- r  -  enter new setpoint
-
- j  -  step response
- k  -  edit controller gains -- note, these edits are stored in volatile memory and will be reset if power is cycled
- g  -  generate sine commutation table
- m  -  print main menu
-
-
-  ...see serialCheck() in Utils for more details
-
 */
 
 #include "Utils.h"
 #include "Parameters.h"
 #include "State.h"
 #include "analogFastWrite.h"
+#include "Controller.h"
 
-//////////////////////////////////////
-/////////////////SETUP////////////////
-//////////////////////////////////////
+/* Comment for closed loop uncomment for calibreation*/
+#define CALIBRATE
 
+/* This is a copy form same thing @ Controller.cpp*/
+static inline uint16_t seekReal(uint16_t raw)
+{
+    uint_fast32_t i;
 
-void setup()        // This code runs once at startup
-{                         
-   
-  digitalWrite(ledPin,HIGH);        // turn LED on 
-  setupPins();                      // configure pins
-  setupTCInterrupts();              // configure controller interrupt
-
-  SerialUSB.begin(115200);          
-  delay(3000);                      // This delay seems to make it easier to establish a connection when the Mechaduino is configured to start in closed loop mode.  
-  serialMenu();                     // Prints menu to serial monitor
-  setupSPI();                       // Sets up SPI for communicating with encoder
-  digitalWrite(ledPin,LOW);         // turn LED off 
-  
-
-  // Uncomment the below lines as needed for your application.
-  // Leave commented for initial calibration and tuning.
-  
-  //    configureStepDir();           // Configures setpoint to be controlled by step/dir interface
-  //    configureEnablePin();         // Active low, for use wath RAMPS 1.4 or similar
-  //     enableTCInterrupts();         // uncomment this line to start in closed loop 
-  //    mode = 'x';                   // start in position mode
-
+    if (raw < lookup[0]) {
+        /* 0 edgecase */
+        return (raw + MAX_RAW - lookup[SPR - 1] < lookup[0] - raw) ? SPR - 1 : 0;
+    } else if (raw > lookup[SPR - 1]) {
+        /* MAX_RAW egecase */
+        return (lookup[0] + MAX_RAW - raw < raw - lookup[SPR - -1]) ? 0 : SPR - 1;
+    } 
+    /* Go to target approx */
+    i = (raw - 1)*SPR / MAX_RAW;
+    if (lookup[i] < raw) {
+        while (i<SPR - 1) {
+            if (lookup[i] >= raw) {
+                return (lookup[i] - raw < raw - lookup[i - 1] ) ? i : i - 1;
+            }
+            i++;
+        }
+    } else {
+        while (i) {
+            if (lookup[i] <= raw) {
+                return (raw - lookup[i] < lookup[i + 1] - raw) ? i : i + 1;
+            }
+            i--;
+        }
+    }
+    return i;
 }
-  
 
-
-//////////////////////////////////////
-/////////////////LOOP/////////////////
-//////////////////////////////////////
-
-
-void loop()                 // main loop
+void setup(void)
 {
 
-  serialCheck();              //must have this execute in loop for serial commands to function
+    setupPins();                      // configure pins
+    setupTCInterrupts();              // configure controller interrupt
+    setupSPI();                       // Sets up SPI for communicating with encoder
 
-  //r=0.1125*step_count;      //Don't use this anymore. Step interrupts enabled above by "configureStepDir()", adjust step size ("stepangle")in parameters.cpp
+#ifdef CALIBRATE
+
+    SerialUSB.begin(115200);
+    while (!SerialUSB);
+
+#else /* !CALIBRATE*/
+
+    /* Find starting setpoint*/
+    newRaw = readEncoder();
+    oldRaw = newRaw;
+
+    setpoint = seekReal(newRaw);
+    configureStepDir();
+    enableTCInterrupts();
+
+#endif /* CALIBRATE */
 
 }
 
+void loop(void)
+{
+#ifdef CALIBRATE
 
+    /* Checks for serial commands*/
+    serialCheck();
 
+#else /* !CALIBRATE*/
 
+    /* No need for whatever arduino whants to do */
+    /* There is a single do-it-all interrupt*/
+    while ("false");
+
+#endif /* CALIBRATE*/
+
+}

@@ -1,14 +1,12 @@
 //Contains the TC5 Handler declaration
 
-
 #ifndef __CONTROLLER_H__
-#define  __CONTROLLER_H__
-
-#define WAIT_TC16_REGS_SYNC(x) while(x->COUNT16.STATUS.bit.SYNCBUSY);
-
+#define __CONTROLLER_H__
 
 void TC5_Handler();
 
+extern volatile uint_fast16_t oldRaw;
+extern volatile uint_fast16_t newRaw;
 
 #endif
 

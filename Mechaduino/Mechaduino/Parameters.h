@@ -1,49 +1,17 @@
-//Contains the Mechaduino parameter declarations
-
 #ifndef __PARAMETERS_H__
 #define __PARAMETERS_H__
 
-#define firmware_version "0.1.4"    //firmware version
-#define identifier "x"              // change this to help keep track of multiple mechaduinos (printed on startup)
+#define firmware_version "N/A"    //firmware version
 
 //----Current Parameters-----
+/* Steps per reveleation */
+#define SPR     400
+/* Timer frequency*/
+#define FS      25000.0 //6500.0
 
-extern volatile float Ts;
-extern volatile float Fs;
+extern const uint16_t lookup[];
 
-extern volatile float pKp;
-extern volatile float pKi;
-extern volatile float pKd;
-extern volatile float pLPF;
-
-
-extern volatile float vKp;
-extern volatile float vKi;
-extern volatile float vKd;
-extern volatile float vLPF;
-
-extern const float lookup[];
-
-
-extern volatile float pLPFa;
-extern volatile float pLPFb;
-extern volatile float vLPFa;
-extern volatile float vLPFb;
-
-
-extern const int spr; //  200 steps per revolution
-extern const float aps; // angle per step
-extern int cpr; //counts per rev
-extern const float stepangle;
-
-extern volatile float PA;  //
-
-extern const float iMAX;
-extern const float rSense;
-extern volatile int uMAX;
-
-
-extern const int sin_1[];
+extern const int uMAX;
 
 //Defines for pins:
 
@@ -53,12 +21,11 @@ extern const int sin_1[];
 #define VREF_1 9
 #define IN_2  7
 #define IN_1  8
-#define ledPin  13
+//#define PIN_LED  13 part of zero compatibility
 #define chipSelectPin A2 //output to chip select
 
 #define step_pin 1
 #define dir_pin 0
-#define enable_pin 2
 
 //for faster digitalWrite:
 #define IN_1_HIGH() (REG_PORT_OUTSET0 = PORT_PA06)
@@ -74,27 +41,4 @@ extern const int sin_1[];
 #define CHIPSELECT_HIGH() (REG_PORT_OUTSET1 = PORT_PB09)
 #define CHIPSELECT_LOW() (REG_PORT_OUTCLR1 = PORT_PB09)
 
-#define ENABLE_PROFILE_IO    // Define to enable profiling I/O pins
-
-#ifdef ENABLE_PROFILE_IO  
-  #define TEST1   3
-
-  #define TEST1_HIGH() (REG_PORT_OUTSET0 = PORT_PA09)
-  #define TEST1_LOW() (REG_PORT_OUTCLR0 = PORT_PA09)
-
-#else
-  #define TEST1_HIGH()
-  #define TEST1_LOW() 
 #endif
-
-
-
-#endif
-
-
-
-
-
-
-
-

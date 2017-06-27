@@ -1,5 +1,3 @@
-//187kHz PWM implementation.  Stock analogWrite is much slower and is very audible!
-
 #include "Arduino.h"
 #include "wiring_private.h"
 
@@ -14,15 +12,13 @@ static int _writeResolution = 8;
 // Wait for synchronization of registers between the clock domains
 static __inline__ void syncADC() __attribute__((always_inline, unused));
 static void syncADC() {
-  while (ADC->STATUS.bit.SYNCBUSY == 1)
-    ;
+  while (ADC->STATUS.bit.SYNCBUSY == 1);
 }
 
 // Wait for synchronization of registers between the clock domains
 static __inline__ void syncDAC() __attribute__((always_inline, unused));
 static void syncDAC() {
-  while (DAC->STATUS.bit.SYNCBUSY == 1)
-    ;
+  while (DAC->STATUS.bit.SYNCBUSY == 1);
 }
 
 // Wait for synchronization of registers between the clock domains

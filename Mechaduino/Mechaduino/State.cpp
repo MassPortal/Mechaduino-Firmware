@@ -1,9 +1,10 @@
   //Contains the declaration of the state variables for the control loop  
-
+#include <stdint.h>
 
 //interrupt vars
 
 volatile int U = 0;       //control effort (abs)
+volatile uint32_t setpoint = 0;
 volatile float r = 0.0;   //setpoint
 volatile float y = 0.0;   // measured angle
 volatile float v = 0.0;  // estimated velocity  (velocity loop)
@@ -23,26 +24,11 @@ volatile float u_3 = 0.0;
 volatile float e_3 = 0.0;
 volatile long counter = 0;
 
-volatile long wrap_count = 0;  //keeps track of how many revolutions the motor has gone though (so you can command angles outside of 0-360)
+volatile int32_t wrapCount = 0;  //keeps track of how many revolutions the motor has gone though (so you can command angles outside of 0-360)
 volatile float y_1 = 0;
 
   
 volatile long step_count = 0;  //For step/dir interrupt (closed loop)
-int stepNumber = 0; // open loop step number (used by 's' and for cal routine)
 
 volatile float ITerm;
 volatile float DTerm;
-
-
-char mode;
-volatile bool dir = false;  
-
-bool print_yw = false;      //for step response, under development...
-
-
-
-
-
-
-
-
