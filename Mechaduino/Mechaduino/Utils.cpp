@@ -6,7 +6,7 @@
 #include "Utils.h"
 #include "analogFastWrite.h"
 #include <math.h>
-
+#include "samd.h"
 
 #ifdef __cplusplus
 extern "C" {

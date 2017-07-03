@@ -27,9 +27,7 @@
 
 #include "Utils.h"
 #include "Parameters.h"
-#include "analogFastWrite.h"
-
-#include <SPI.h>
+#include "samd.h"
 
 static volatile uint_fast16_t oldRaw;
 static volatile uint_fast16_t newRaw;
