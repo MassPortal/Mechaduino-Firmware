@@ -37,7 +37,7 @@ void setupPins() {
     pinMode(IN_3, OUTPUT);
     pinMode(IN_2, OUTPUT);
     pinMode(IN_1, OUTPUT);
-    pinMode(chipSelectPin, OUTPUT); // CSn -- has to toggle high and low to signal chip to start data transfer
+    pinMode(PIN_CS, OUTPUT); // CSn -- has to toggle high and low to signal chip to start data transfer
 
 
 #ifdef ENABLE_PROFILE_IO  
@@ -96,10 +96,10 @@ static void dirInterrupt()
 
 void configureStepDir(void) 
 {
-  pinMode(step_pin, INPUT);
-  pinMode(dir_pin, INPUT);
-  attachInterrupt(step_pin, stepInterrupt, RISING);
-  attachInterrupt(dir_pin, dirInterrupt, CHANGE);
+  pinMode(PIN_STEP, INPUT);
+  pinMode(PIN_DIR, INPUT);
+  attachInterrupt(PIN_STEP, stepInterrupt, RISING);
+  attachInterrupt(PIN_DIR, dirInterrupt, CHANGE);
 }
 
 void output(uint32_t theta, int effort) 
@@ -135,14 +135,14 @@ void output(uint32_t theta, int effort)
 static bool readEncoderDiagnostics(void)
 {
   uint16_t tmp;
-  CHIPSELECT_LOW();
+  CS_LOW();
 
   SPI.transfer(0xFF);
   SPI.transfer(0xFC);
 
-  CHIPSELECT_HIGH();
+  CS_HIGH();
   delay(1);
-  CHIPSELECT_LOW();
+  CS_LOW();
 
   uint8_t b1 = SPI.transfer(0xC0);
   uint8_t b2 = SPI.transfer(0x00);
@@ -156,17 +156,17 @@ static bool readEncoderDiagnostics(void)
 
   if ((tmp & (1 << 14)) | (tmp & (1 << 11)) | (tmp & (1 << 10)) | (tmp & (1 << 9))) return false;
 
-  CHIPSELECT_HIGH();
+  CS_HIGH();
   delay(1);
-  CHIPSELECT_LOW();
+  CS_LOW();
 
   SPI.transfer(0x40); 
   SPI.transfer(0x01);
-  CHIPSELECT_HIGH();
+  CS_HIGH();
 
   delay(1);
   
-  CHIPSELECT_LOW();
+  CS_LOW();
   b1 = SPI.transfer(0xC0);
   b2 = SPI.transfer(0x00);
   tmp = (((b1 << 8) | b2));
@@ -178,7 +178,7 @@ static bool readEncoderDiagnostics(void)
 
   if ((tmp & (1 << 14)) | (tmp & (1 << 2)) | (tmp & (1 << 1)) | (tmp & (1 << 0)))  return false;
 
-  CHIPSELECT_HIGH();
+  CS_HIGH();
 
   delay(1);
 
@@ -337,14 +337,14 @@ uint_fast16_t readEncoder(void)
 {
     uint_fast16_t tmp;
   
-    CHIPSELECT_LOW();
+    CS_LOW();
 
     uint8_t b1 = SPI.transfer(0xFF);
     uint8_t b2 = SPI.transfer(0xFF);
 
     tmp = (((b1 << 8) | b2) & MAX_RAW);
 
-    CHIPSELECT_HIGH();
+    CS_HIGH();
     return tmp;
 }
 

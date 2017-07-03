@@ -125,18 +125,18 @@ __attribute__((hot)) __attribute__((interrupt)) void TC5_Handler(void)
 
     if (wrapCount<0) {
         output(realPoint - 1, 60);
-        ledPin_HIGH();
+        PIN_LED_HIGH();
     } else if (wrapCount>0) {
         output(realPoint + 1, 60);
-        ledPin_HIGH();
+        PIN_LED_HIGH();
     } else if (setPoint > realPoint) {
         output(realPoint - 1, 60);
-        ledPin_HIGH();
+        PIN_LED_HIGH();
     } else if (setPoint < realPoint) {
         output(realPoint + 1, 60);
-        ledPin_HIGH();
+        PIN_LED_HIGH();
     } else {
-        ledPin_LOW();
+        PIN_LED_LOW();
     }
     oldRaw = newRaw;
     /* Clear ovf flag */
