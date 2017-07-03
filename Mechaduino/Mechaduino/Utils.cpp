@@ -24,11 +24,6 @@ volatile uint_fast8_t setMicro = 0;
 /* Wraps + direction as sign*/
 volatile int32_t wrapCount = 0;
 
-static inline int mod(int xMod, int mMod) 
-{
-  return (xMod % mMod + mMod) % mMod;
-}
-
 void setupPins() {
 
     pinMode(VREF_2, OUTPUT);
@@ -46,12 +41,8 @@ void setupPins() {
 
   pinMode(PIN_LED, OUTPUT);
 
-  // pinMode(clockPin, OUTPUT); // SCL    for I2C
-  // pinMode(inputPin, INPUT); // SDA
-
-
-  analogFastWrite(VREF_2, 0.33 * uMAX);
-  analogFastWrite(VREF_1, 0.33 * uMAX);
+  analogInit(VREF_2, 0.33 * uMAX);
+  analogInit(VREF_1, 0.33 * uMAX);
 
   IN_4_HIGH();   //  digitalWrite(IN_4, HIGH);
   IN_3_LOW();    //  digitalWrite(IN_3, LOW);

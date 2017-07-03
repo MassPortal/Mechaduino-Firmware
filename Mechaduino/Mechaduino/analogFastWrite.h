@@ -7,7 +7,8 @@
 extern "C" {
 #endif
 
-void analogFastWrite( uint32_t ulPin, uint32_t ulValue ) ;
+void analogFastWrite( uint32_t ulPin, uint32_t ulValue);
+void analogInit(uint32_t pin, uint32_t val);
 
 #ifdef __cplusplus
 }

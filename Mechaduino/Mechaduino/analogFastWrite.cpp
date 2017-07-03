@@ -6,8 +6,6 @@
 extern "C" {
 #endif
 
-static int _writeResolution = 8;
-
 /* Wait for synchronization of registers between the clock domains */
 static inline void syncTC_8(Tc* TCx) 
 {
@@ -18,12 +16,6 @@ static inline void syncTC_8(Tc* TCx)
 static inline void syncTCC(Tcc* TCCx) 
 {
     while (TCCx->SYNCBUSY.reg & TCC_SYNCBUSY_MASK);
-}
-
-
-static inline uint32_t mapResolution(uint32_t value, uint32_t from, uint32_t to)
-{
-    return (from > to) ? value >> (from - to) : value << (to - from);
 }
 
 /*
@@ -38,6 +30,28 @@ static inline uint32_t mapResolution(uint32_t value, uint32_t from, uint32_t to)
 #endif /* Compiance check*/
 void analogFastWrite(uint32_t pin, uint32_t value)
 {
+    PinDescription pinDesc = g_APinDescription[pin];
+    uint32_t tcNum = GetTCNumber(pinDesc.ulPWMChannel);
+    uint8_t tcChannel = GetTCChannelNumber(pinDesc.ulPWMChannel);
+
+    if (tcNum >= TCC_INST_NUM) {
+        Tc* TCx = (Tc*) GetTC(pinDesc.ulPWMChannel);
+        TCx->COUNT8.CC[tcChannel].reg = (uint8_t) value;
+        syncTC_8(TCx);
+    } else {
+        Tcc* TCCx = (Tcc*) GetTC(pinDesc.ulPWMChannel);
+        TCCx->CTRLBSET.bit.LUPD = 1;
+        syncTCC(TCCx);
+        TCCx->CCB[tcChannel].reg = (uint32_t) value;
+        syncTCC(TCCx);
+        TCCx->CTRLBCLR.bit.LUPD = 1;
+        syncTCC(TCCx);
+    }
+}
+
+void analogInit(uint32_t pin, uint32_t value)
+{
+    
     const uint16_t GCLK_CLKCTRL_IDs[] = {
         GCLK_CLKCTRL_ID(GCM_TCC0_TCC1), // TCC0
         GCLK_CLKCTRL_ID(GCM_TCC0_TCC1), // TCC1
@@ -49,14 +63,12 @@ void analogFastWrite(uint32_t pin, uint32_t value)
         GCLK_CLKCTRL_ID(GCM_TC6_TC7),   // TC7
       };
 
+    static bool tcEnabled[TCC_INST_NUM+TC_INST_NUM];
     PinDescription pinDesc = g_APinDescription[pin];
     uint32_t attr = pinDesc.ulPinAttribute;
-
-    value = mapResolution(value, _writeResolution, 8);  // change to 10 for 10 bit... must also change  TCx->COUNT8.PER.reg = 0x3FF
     uint32_t tcNum = GetTCNumber(pinDesc.ulPWMChannel);
     uint8_t tcChannel = GetTCChannelNumber(pinDesc.ulPWMChannel);
-    static bool tcEnabled[TCC_INST_NUM+TC_INST_NUM];
-
+    
     if (!tcEnabled[tcNum]) {
         tcEnabled[tcNum] = true;
         pinPeripheral(pin, attr & PIN_ATTR_TIMER ? PIO_TIMER : PIO_TIMER_ALT);
@@ -100,20 +112,6 @@ void analogFastWrite(uint32_t pin, uint32_t value)
             syncTCC(TCCx);
             // Enable TCCx
             TCCx->CTRLA.bit.ENABLE = 1;
-            syncTCC(TCCx);
-        }
-    } else {
-        if (tcNum >= TCC_INST_NUM) {
-            Tc* TCx = (Tc*) GetTC(pinDesc.ulPWMChannel);
-            TCx->COUNT8.CC[tcChannel].reg = (uint8_t) value;
-            syncTC_8(TCx);
-        } else {
-            Tcc* TCCx = (Tcc*) GetTC(pinDesc.ulPWMChannel);
-            TCCx->CTRLBSET.bit.LUPD = 1;
-            syncTCC(TCCx);
-            TCCx->CCB[tcChannel].reg = (uint32_t) value;
-            syncTCC(TCCx);
-            TCCx->CTRLBCLR.bit.LUPD = 1;
             syncTCC(TCCx);
         }
     }
