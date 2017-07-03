@@ -1,6 +1,5 @@
-//187kHz PWM implementation.  Stock analogWrite is much slower and is very audible!
-
-#pragma once
+#ifndef ANALOG_FAST_WRITE_H
+#define ANALOG_FAST_WRITE_H
 
 #include <stdint.h>
 
@@ -8,18 +7,13 @@
 extern "C" {
 #endif
 
-/*
- * \brief SAMD products have only one reference for ADC
- */
-
-
-extern void analogFastWrite( uint32_t ulPin, uint32_t ulValue ) ;
-
+void analogFastWrite( uint32_t ulPin, uint32_t ulValue ) ;
 
 #ifdef __cplusplus
 }
 #endif
 
+#endif /* ANALOG_FAST_WRITE_H */
 
 
 
