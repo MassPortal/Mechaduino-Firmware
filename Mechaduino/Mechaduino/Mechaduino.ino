@@ -109,34 +109,101 @@ void loop(void)
 
 }
 
+static volatile int_fast8_t microToDo;
+static volatile int_fast16_t stepToDo;
+
 /* Gets called with FS frequency*/
 /* Gets called frequently and it's an interrupt*/
 __attribute__((hot)) __attribute__((interrupt)) void TC5_Handler(void)
 {
+    int_fast8_t move;
     /* Overfolow didnt cause interrupt*/
-    if (TC5->COUNT16.INTFLAG.bit.OVF != 1) return;
+    if (TC5->COUNT16.INTFLAG.bit.OVF != 1) while ("0_o");//return;
+    TC5->COUNT16.INTFLAG.bit.OVF = 1; 
+
     /* Get new position*/
     newRaw = readEncoder();
+    /* XXX TODO Wrap and real point can be inconsistent*/
     if (newRaw > oldRaw && oldRaw + MAX_RAW/2 < newRaw) wrapCount--;
     else if (newRaw < oldRaw && newRaw + MAX_RAW/2 < oldRaw) wrapCount++;
     realPoint = seekReal(newRaw);
+    oldRaw = newRaw;
 
+    if (microToDo > 0) {
+        move = 1;
+    } else if (microToDo < 0) {
+        move = -1;
+    } else if (wrapCount<0) {
+        microToDo = -USTEPS;
+        stepToDo = realPoint;
+        move = -1;
+    } else if (wrapCount>0) {
+        microToDo = USTEPS;
+        stepToDo = realPoint;
+        move = 1;
+    } else if (setPoint > realPoint && !(setPoint + 1 == realPoint && setMicro)) {
+        microToDo  = -USTEPS;
+        stepToDo = realPoint;
+        move = -1;
+        /* One is wrong and should be removed */
+    } else if (setPoint < realPoint && !(realPoint + 1 == setPoint && setMicro)) {
+        microToDo = USTEPS;
+        stepToDo = realPoint;
+        move = 1;
+    } else if (setMicro > realMicro) {
+        move = -1;
+    } else if (setMicro < realMicro) {
+        move = 1;
+    } else {
+        move = 0;
+    }
+
+    if (microToDo) {
+        if (microToDo > 0) microToDo--;
+        else microToDo++;
+    }
+    if (!microToDo) stepToDo = realPoint;
+
+    /*
+    SerialUSB.print(wrapCount);
+    SerialUSB.print(" : ");
+    SerialUSB.print(setPoint);
+    SerialUSB.print(" : ");
+    SerialUSB.print(stepToDo);
+    SerialUSB.print(" : ");
+    SerialUSB.print(microToDo);
+    SerialUSB.print(" : ");
+    SerialUSB.print(realMicro);
+    SerialUSB.print(" : ");
+    SerialUSB.print(move);
+    SerialUSB.print("\n");
+    */
+
+    move ? PIN_LED_HIGH() : PIN_LED_LOW();
+    output(stepToDo*USTEPS + realMicro + move, 300);
+    if (!realMicro && move == -1) {
+        realMicro = USTEPS - 1;
+    } else if (realMicro == USTEPS - 1 && move == 1) {
+        realMicro = 0;
+    } else {
+        realMicro += move;
+    }
+#if 0
     if (wrapCount<0) {
-        output(realPoint - 1, 60);
+        output(realPoint - 1, 200);
         PIN_LED_HIGH();
     } else if (wrapCount>0) {
-        output(realPoint + 1, 60);
+        output(realPoint + 1, 200);
         PIN_LED_HIGH();
     } else if (setPoint > realPoint) {
-        output(realPoint - 1, 60);
+        output(realPoint - 1, 200);
         PIN_LED_HIGH();
     } else if (setPoint < realPoint) {
-        output(realPoint + 1, 60);
+        output(realPoint + 1, 200);
         PIN_LED_HIGH();
     } else {
         PIN_LED_LOW();
     }
-    oldRaw = newRaw;
+#endif /* 0 */
     /* Clear ovf flag */
-    TC5->COUNT16.INTFLAG.bit.OVF = 1; 
 }

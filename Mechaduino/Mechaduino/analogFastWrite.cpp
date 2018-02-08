@@ -28,7 +28,7 @@ static inline void syncTCC(Tcc* TCCx)
 #if !(ARDUINO_SAMD_VARIANT_COMPLIANCE >= 10603)
 #error Upgade arduino variant compiance < 10603
 #endif /* Compiance check*/
-void analogFastWrite(uint32_t pin, uint32_t value)
+__attribute__((hot)) void analogFastWrite(uint32_t pin, uint32_t value)
 {
     PinDescription pinDesc = g_APinDescription[pin];
     uint32_t tcNum = GetTCNumber(pinDesc.ulPWMChannel);

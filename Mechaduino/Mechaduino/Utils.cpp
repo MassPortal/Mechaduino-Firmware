@@ -95,33 +95,38 @@ void configureStepDir(void)
 
 void output(uint32_t theta, int effort) 
 {
-    const int16_t sinLook[] = {0, 1, 0, -1};// Full step lookup table
+    #if USTEPS == 1
+        /* NOTE: could always use largest lookup however that would result in several unused bytes :( */
+        const int_fast16_t sinLook[USTEPS*4] = {0, 1024, 0, -1024};
+    #elif USTEPS == 32
+        /* NOTE: make it 2x smaller in case you feel like it (int16) */
+        /* NOTE: make it 4x smaller in case of emergency (single quadrant || single half-wave) */
+        const int_fast16_t sinLook[USTEPS*4] = {0,50,100,150,200,249,297,345,392,438,483,526,569,610,650,688,724,759,792,822,851,878,903,926,946,964,980,993,1004,1013,1019,1023,1024,1023,1019,1013,1004,993,980,964,946,926,903,878,851,822,792,759,724,688,650,610,569,526,483,438,392,345,297,249,200,150,100,50,0,-50,-100,-150,-200,-249,-297,-345,-392,-438,-483,-526,-569,-610,-650,-688,-724,-759,-792,-822,-851,-878,-903,-926,-946,-964,-980,-993,-1004,-1013,-1019,-1023,-1024,-1023,-1019,-1013,-1004,-993,-980,-964,-946,-926,-903,-878,-851,-822,-792,-759,-724,-688,-650,-610,-569,-526,-483,-438,-392,-345,-297,-249,-200,-150,-100,-50};
+    #else
+        #ifdef USTEPS 
+            #error Unsupported number of microsteps
+        #else
+            #error And how many microsteps would you like (1 for none)?
+        #endif /* USTEPS*/
+    #endif 
 
     int32_t coilA, coilB;
-    uint8_t angle = theta%4;
-    coilA = (int32_t)effort*sinLook[angle];
-    /* Add 90 degrees */
-    if (++angle >= 4) angle = 0;
-    coilB = (int32_t)effort*sinLook[angle];
+    uint_fast16_t angle = theta%(4*USTEPS);
+
+    coilA = (int32_t)(effort*sinLook[angle])/(1024*4);
+    angle += USTEPS;
+    if (angle >= 4 * USTEPS) angle -= 4 * USTEPS;
+    coilB = (int32_t)(effort*sinLook[angle])/(1024*4);
+    /* XXX TODO Have a good look if it's actualy fast*/
+    /*How many bits does this thing has? */
     analogFastWrite(VREF_1, abs(coilA));
     analogFastWrite(VREF_2, abs(coilB));
-    if (coilA >= 0) {
-        IN_2_HIGH();
-        IN_1_LOW();
-    } else {
-        IN_2_LOW();
-        IN_1_HIGH();
-    }
 
-    if (coilB >= 0) {
-        IN_4_HIGH();
-        IN_3_LOW();
-    } else {
-        IN_4_LOW();
-        IN_3_HIGH();
-    }
+    if (coilA >= 0) COIL_A_HIGH();
+    else COIL_A_LOW();
+    if (coilB >= 0) COIL_B_HIGH();
+    else COIL_B_LOW();
 }
-
 
 static bool readEncoderDiagnostics(void)
 {
@@ -320,7 +325,7 @@ void oneStep(void)
 {
     /* Since we have a "one step" function anyway*/
     stepInterrupt();
-    output(setPoint, 100);
+    output(setPoint, 200);
     delay(10);
 }
 

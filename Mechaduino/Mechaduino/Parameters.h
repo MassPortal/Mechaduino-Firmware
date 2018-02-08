@@ -7,7 +7,7 @@
 //----Current Parameters-----
 /* Steps per reveleation */
 #define SPR     400
-#define USTEPS  32
+#define USTEPS  1
 /* Timer frequency*/
 #define FS      25000.0 //6500.0
 
@@ -38,6 +38,12 @@ extern const int uMAX;
 #define IN_3_LOW() (REG_PORT_OUTCLR0 = PORT_PA15)
 #define IN_4_HIGH() (REG_PORT_OUTSET0 = PORT_PA20)
 #define IN_4_LOW() (REG_PORT_OUTCLR0 = PORT_PA20)
+
+#define COIL_A_HIGH() do {IN_2_HIGH(); IN_1_LOW();} while (0)
+#define COIL_A_LOW() do {IN_2_LOW(); IN_1_HIGH();} while (0)
+#define COIL_B_HIGH() do {IN_4_HIGH(); IN_3_LOW();} while (0)
+#define COIL_B_LOW() do {IN_4_LOW(); IN_3_HIGH();} while (0)
+
 #define PIN_LED_HIGH() (REG_PORT_OUTSET0 = PORT_PA17)
 #define PIN_LED_LOW() (REG_PORT_OUTCLR0 = PORT_PA17)
 #define CS_HIGH() (REG_PORT_OUTSET1 = PORT_PB09)
